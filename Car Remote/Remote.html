@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>SentinelSight Control</title>
+    <style>
+        :root {
+            --primary: #00f2ff; /* Cyber Cyan */
+            --secondary: #ff0055; /* Alert Red */
+            --bg-dark: #0b0e14;
+            --panel-bg: rgba(20, 26, 35, 0.85);
+            --text-color: #e0e6ed;
+        }
+
+        body {
+            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg-dark);
+            color: var(--text-color);
+            margin: 0;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            user-select: none; /* Prevent text selection */
+        }
+
+        /* HEADER */
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px 30px;
+            background: linear-gradient(90deg, #0f151f 0%, #1a222e 100%);
+            border-bottom: 2px solid var(--primary);
+            box-shadow: 0 0 15px rgba(0, 242, 255, 0.2);
+        }
+
+        .brand h1 {
+            margin: 0;
+            font-size: 1.5rem;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+        .brand span { color: var(--primary); }
+        .tagline { font-size: 0.8rem; color: #8892b0; letter-spacing: 1px; }
+
+        .status-indicators {
+            display: flex;
+            gap: 15px;
+            font-size: 0.8rem;
+            font-weight: bold;
+        }
+        .stat { display: flex; align-items: center; gap: 5px; }
+        .dot { width: 8px; height: 8px; border-radius: 50%; background: #333; }
+        .dot.active { background: #00ff44; box-shadow: 0 0 8px #00ff44; }
+
+        /* MAIN INTERFACE */
+        .cockpit {
+            flex: 1;
+            display: grid;
+            grid-template-columns: 1fr 2fr 1fr; /* Controls | Screen | Controls */
+            gap: 20px;
+            padding: 20px;
+            position: relative;
+        }
+
+        /* VIDEO FEED FRAME */
+        .viewport {
+            position: relative;
+            background: #000;
+            border-radius: 12px;
+            border: 1px solid #333;
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            box-shadow: inset 0 0 50px rgba(0,0,0,0.8);
+        }
+
+        /* This is where your ESP32 Camera stream goes */
+        #camera-stream {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            /* Placeholder styling until stream loads */
+            background: repeating-linear-gradient(
+                45deg,
+                #111,
+                #111 10px,
+                #1a1a1a 10px,
+                #1a1a1a 20px
+            );
+        }
+        
+        .overlay-text {
+            position: absolute;
+            top: 10px; left: 15px;
+            color: var(--primary);
+            font-family: monospace;
+            font-size: 0.9rem;
+            text-shadow: 0 0 5px var(--primary);
+            opacity: 0.8;
+        }
+
+        /* CONTROL PANELS */
+        .control-panel {
+            background: var(--panel-bg);
+            border-radius: 16px;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255,255,255,0.05);
+        }
+
+        h3 {
+            margin-top: 0;
+            font-size: 0.9rem;
+            text-transform: uppercase;
+            color: #8892b0;
+            border-bottom: 1px solid #333;
+            width: 100%;
+            text-align: center;
+            padding-bottom: 10px;
+            margin-bottom: 20px;
+        }
+
+        /* BUTTON GRIDS */
+        .d-pad {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+        }
+
+        .btn {
+            background: #232b38;
+            border: none;
+            border-radius: 8px;
+            color: var(--text-color);
+            font-size: 1.2rem;
+            cursor: pointer;
+            width: 60px;
+            height: 60px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            transition: all 0.1s;
+            box-shadow: 0 4px 0 #151b24;
+            touch-action: manipulation; /* Improves touch response */
+        }
+
+        .btn:active, .btn.pressed {
+            transform: translateY(4px);
+            box-shadow: 0 0 0 #151b24;
+            background: var(--primary);
+            color: #000;
+        }
+
+        .btn-audio {
+            width: 100%;
+            margin-top: 20px;
+            background: #2a1a20;
+            color: var(--secondary);
+            font-size: 0.9rem;
+            font-weight: bold;
+        }
+        .btn-audio.active {
+            background: var(--secondary);
+            color: white;
+            box-shadow: 0 0 15px var(--secondary);
+        }
+
+        /* Responsive Adjustments */
+        @media (max-width: 768px) {
+            .cockpit {
+                grid-template-columns: 1fr;
+                grid-template-rows: auto 1fr auto;
+                overflow-y: auto;
+            }
+            .viewport { height: 300px; }
+            .d-pad { gap: 15px; }
+            .btn { width: 70px; height: 70px; }
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <div class="brand">
+            <h1>Sentinel<span>Sight</span></h1>
+            <div class="tagline">Find // Identify // Record</div>
+        </div>
+        <div class="status-indicators">
+            <div class="stat"><div class="dot active"></div> SYS OK</div>
+            <div class="stat"><div class="dot" id="conn-dot"></div> LINK</div>
+        </div>
+    </header>
+
+    <div class="cockpit">
+        
+        <div class="control-panel">
+            <h3>Movement</h3>
+            <div class="d-pad">
+                <div></div>
+                <button class="btn" onmousedown="startMove('forward')" onmouseup="stopMove()" ontouchstart="startMove('forward')" ontouchend="stopMove()">▲</button>
+                <div></div>
+                
+                <button class="btn" onmousedown="startMove('left')" onmouseup="stopMove()" ontouchstart="startMove('left')" ontouchend="stopMove()">◄</button>
+                <div></div>
+                <button class="btn" onmousedown="startMove('right')" onmouseup="stopMove()" ontouchstart="startMove('right')" ontouchend="stopMove()">►</button>
+
+                <div></div>
+                <button class="btn" onmousedown="startMove('backward')" onmouseup="stopMove()" ontouchstart="startMove('backward')" ontouchend="stopMove()">▼</button>
+
+            </div>
+        </div>
+
+        <div class="viewport">
+            <div class="overlay-text">
+                LIVE FEED :: <span id="timestamp">00:00:00</span>
+            </div>
+                <img id="camera-stream" src="http://192.168.168.141:81" width="500" height="350"> </div>
+
+        <div class="control-panel">
+            <h3>Camera Servo</h3>
+            <div class="d-pad">
+                <div></div>
+                <button class="btn" onmousedown="startMove('servo_left')" ontouchstart="startMove('servo_left')">▲</button>
+                <div></div>
+                <div></div>
+                <button class="btn" onmousedown="startMove('servo_center')" ontouchstart="startMove('servo_center')">●</button>
+                <div></div>
+                <div></div>
+                <button class="btn" onmousedown="startMove('servo_right')" ontouchstart="startMove('servo_right')">▼</button>
+            </div>
+
+            <button class="btn btn-audio" id="audioBtn" onclick="toggleAudio()"> AUDIO: OFF</button>
+        </div>
+
+    </div>
+
+    <audio id="audioPlayer" style="display:none;"></audio>
+
+    <script>
+        const ROBOT_IP = "192.168.18.126"; 
+        const CAM_STREAM_URL = "http://192.168.18.141:81/stream";
+        const AUDIO_STREAM_URL = `http://${ROBOT_IP}/audio`;
+        
+
+        
+        
+        const camElement = document.getElementById('camera-stream');
+        if(camElement) camElement.src = CAM_STREAM_URL;
+
+        setInterval(() => {
+            const now = new Date();
+            document.getElementById('timestamp').innerText = now.toLocaleTimeString();
+        }, 1000);
+
+        const connDot = document.getElementById('conn-dot');
+        setInterval(() => {
+            connDot.classList.toggle('active');
+        }, 500);
+
+
+        function startMove(cmd) {
+            sendCommand(cmd);
+        }
+
+        function stopMove() {
+            sendCommand('stop');
+        }
+
+        function sendCommand(cmd) {
+            console.log("Sending: " + cmd);
+            fetch(`http://${ROBOT_IP}/${cmd}`).catch(e => console.log("Error:", e));
+        }
+
+        let isAudioPlaying = false;
+        const audioBtn = document.getElementById('audioBtn');
+
+    function toggleAudio() {
+        isAudioPlaying = !isAudioPlaying;
+        
+        if (isAudioPlaying) {
+            audioBtn.innerText = "AUDIO: LIVE";
+            audioBtn.classList.add('active');
+            
+            console.log("Starting Mic Stream...");
+            fetch(`http://${ROBOT_IP}/audio_on`, {mode: 'no-cors'});
+            
+        } else {
+            
+            audioBtn.innerText = "AUDIO: OFF";
+            audioBtn.classList.remove('active');
+            console.log("Stopping Mic Stream...");
+            fetch(`http://${ROBOT_IP}/audio_off`, {mode: 'no-cors'});
+        }
+}
+    </script>
+</body>
+</html>
